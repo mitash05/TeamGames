@@ -1,8 +1,6 @@
 // firebase.js
-// Replace the firebaseConfig object with your Firebase Web App config.
-// (From Firebase Console -> Project -> Add Web App)
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, set, onValue, update, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB84UjJrcR7CE0OhhyWhFJzgrNwzglm04M",
@@ -15,6 +13,14 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+export const db = getDatabase(app);
+export { ref, set, onValue, update };
 
-export { db, ref, set, onValue, update, get };
+// Global Audio Context (to be used in index.html)
+export const playSound = (soundId) => {
+    const audio = document.getElementById(soundId);
+    if(audio) {
+        audio.currentTime = 0;
+        audio.play().catch(e => console.log("Audio play blocked until user interaction", e));
+    }
+};
