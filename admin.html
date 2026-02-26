@@ -1,184 +1,83 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Operation Level Up — Admin</title>
-<link rel="stylesheet" href="styles.css">
-<style>
-  body { padding:16px; background:#05060a; color:#fff; font-family:Arial; }
-  .panel { max-width:520px; margin:0 auto; }
-  .controls button { margin:6px; padding:10px 12px; border-radius:8px; border:none; cursor:pointer; }
-  .teamControl { background:#111; margin:8px 0; padding:8px; border-radius:10px;}
-  input { padding:8px; border-radius:8px; border:1px solid #333; background:#0b0b0b; color:#fff; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Energy Dominion</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
-<body>
-  <div class="panel">
-    <h1>Admin Panel</h1>
+<body class="admin-mode">
 
-    <div class="controls">
-      <h3>Game Controls</h3>
-      <button onclick="startGame()">START MISSION</button>
-      <button onclick="startFreeze(10)">Freeze 10s</button>
-      <button onclick="startFreeze(30)">Freeze 30s</button>
-      <button onclick="stopFreeze()">Stop Timer</button>
+    <h2 class="neon-text-blue" style="text-align: center; margin-bottom: 20px;">Command Center</h2>
+    
+    <div class="admin-controls" style="margin-bottom: 20px;">
+        <button id="btn-start" style="border-color: var(--neon-green);">Start Game</button>
+        <button id="btn-freeze" style="border-color: var(--neon-blue);">Toggle Freeze</button>
+        <button id="btn-showdown" class="btn-red">Final Showdown</button>
+        <button id="btn-reset">Reset Game</button>
     </div>
 
-    <div style="margin-top:12px;">
-      <h3>Round</h3>
-      <input id="roundInput" placeholder="Round Name (e.g. Freeze Command)">
-      <button onclick="setRound()">Set Round</button>
-    </div>
-
-    <div style="margin-top:18px;">
-      <h3>Teams</h3>
-      <div id="adminTeams"></div>
-      <button onclick="addTeam()">+ Add Team</button>
-    </div>
-
-    <div style="margin-top:18px;">
-      <h3>Session</h3>
-      <button onclick="resetGame()">Reset Game (careful)</button>
-    </div>
-  </div>
-
-<script type="module">
-import { db, ref, set, update, onValue, get } from './firebase.js';
-
-const gameRef = ref(db, "game");
-
-const defaultState = {
-  phase: "intro",
-  round: "Freeze Command",
-  timer: { endTime:0, duration:0, active:false },
-  lastChange: null,
-  lastChangedTeam: null,
-  teams: [
-    { name: "Red", score: 50, roles: [] },
-    { name: "Blue", score: 50, roles: [] },
-    { name: "Green", score: 50, roles: [] },
-    { name: "Yellow", score: 50, roles: [] }
-  ]
-};
-
-// Only initialize if game node is empty
-async function ensureInit(){
-  try {
-    const snap = await get(gameRef);
-    if(!snap.exists()){
-      await set(gameRef, defaultState);
-    }
-  } catch(e){
-    console.error("Firebase init error", e);
-  }
-}
-
-ensureInit();
-
-onValue(gameRef, snapshot => {
-  const data = snapshot.val();
-  if(!data) return;
-  const container = document.getElementById("adminTeams");
-  container.innerHTML = "";
-  data.teams.forEach((team, index) => {
-    const el = document.createElement("div");
-    el.className = "teamControl";
-    el.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <input id="name-${index}" value="${team.name}" style="width:140px;">
-          <small style="margin-left:8px">Score: ${team.score}</small>
+    <div id="admin-teams" class="admin-grid">
         </div>
-        <div>
-          <button onclick="change(${index},5)">+5</button>
-          <button onclick="change(${index},-5)">-5</button>
-          <button onclick="addRole(${index})">Add Role</button>
-          <button onclick="rename(${index})">Rename</button>
-        </div>
-      </div>
-      <div style="margin-top:8px;">
-        <small>Roles: ${team.roles.join(", ") || '—'}</small>
-      </div>
-    `;
-    container.appendChild(el);
-  });
-});
 
-// change score (writes lastChange + lastChangedTeam)
-window.change = async function(index, amount){
-  try {
-    const snap = await get(gameRef);
-    if(!snap.exists()) return;
-    const data = snap.val();
-    data.teams[index].score = Math.max(0, Math.min(120, (data.teams[index].score || 0) + amount));
-    data.lastChange = amount > 0 ? "gain" : "lose";
-    data.lastChangedTeam = index;
-    await update(gameRef, data);
-  } catch(e){ console.error(e); }
-}
+    <script type="module">
+        import { db, ref, onValue, update, set } from './firebase.js';
 
-window.setRound = async function(){
-  const r = document.getElementById("roundInput").value || "Round";
-  await update(gameRef, { round: r });
-}
+        const gameRef = ref(db, 'game');
+        let currentGameState = {};
 
-// start game (switch phase)
-window.startGame = async function(){
-  await update(gameRef, { phase: "game" });
-}
+        // Default setup for 4 teams
+        const defaultTeams = {
+            team1: { name: "Alpha Squadron", energy: 100, eliminated: false, roles: { strategist: true, runner: true } },
+            team2: { name: "Bravo Vanguard", energy: 100, eliminated: false, roles: { strategist: true, runner: true } },
+            team3: { name: "Charlie Vertex", energy: 100, eliminated: false, roles: { strategist: true, runner: true } },
+            team4: { name: "Delta Prime", energy: 100, eliminated: false, roles: { strategist: true, runner: true } }
+        };
 
-// freeze timer (writes endTime + duration + active)
-window.startFreeze = async function(seconds){
-  const end = Date.now() + seconds * 1000;
-  await update(gameRef, { timer: { endTime: end, duration: seconds, active: true } });
-}
+        // Listen for state to render buttons
+        onValue(gameRef, (snapshot) => {
+            currentGameState = snapshot.val() || { status: 'intro', teams: defaultTeams };
+            renderTeams();
+        });
 
-window.stopFreeze = async function(){
-  await update(gameRef, { timer: { endTime:0, duration:0, active:false } });
-}
+        function adjustEnergy(teamId, amount) {
+            let newEnergy = (currentGameState.teams[teamId].energy || 0) + amount;
+            if (newEnergy > 100) newEnergy = 100;
+            if (newEnergy <= 0) {
+                newEnergy = 0;
+                update(ref(db, `game/teams/${teamId}`), { eliminated: true });
+            }
+            update(ref(db, `game/teams/${teamId}`), { energy: newEnergy });
+        }
 
-window.addRole = async function(index){
-  const role = prompt("Enter role name (e.g. Noise Captain):");
-  if(!role) return;
-  try {
-    const snap = await get(gameRef);
-    const data = snap.val();
-    data.teams[index].roles = data.teams[index].roles || [];
-    data.teams[index].roles.push(role);
-    await update(gameRef, data);
-  } catch(e){ console.error(e); }
-}
+        function renderTeams() {
+            const container = document.getElementById('admin-teams');
+            container.innerHTML = '';
+            for (const [id, team] of Object.entries(currentGameState.teams || {})) {
+                const div = document.createElement('div');
+                div.className = 'admin-team';
+                div.innerHTML = `
+                    <h3>${team.name} - ${team.energy}%</h3>
+                    <div class="btn-group">
+                        <button onclick="window.adjustEnergy('${id}', -10)" class="btn-red">-10</button>
+                        <button onclick="window.adjustEnergy('${id}', -5)" class="btn-red">-5</button>
+                        <button onclick="window.adjustEnergy('${id}', 5)">+5</button>
+                        <button onclick="window.adjustEnergy('${id}', 10)">+10</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            }
+        }
+        window.adjustEnergy = adjustEnergy; // Expose to inline onclick
 
-window.rename = async function(index){
-  const nameInput = document.getElementById(`name-${index}`);
-  if(!nameInput) return;
-  const newName = nameInput.value.trim();
-  if(!newName) return;
-  try {
-    const snap = await get(gameRef);
-    const data = snap.val();
-    data.teams[index].name = newName;
-    await update(gameRef, data);
-  } catch(e){ console.error(e); }
-}
-
-window.addTeam = async function(){
-  const name = prompt("Team name:");
-  if(!name) return;
-  try {
-    const snap = await get(gameRef);
-    const data = snap.val();
-    data.teams.push({ name, score: 50, roles: [] });
-    await update(gameRef, data);
-  } catch(e){ console.error(e); }
-}
-
-window.resetGame = async function(){
-  if(!confirm("Reset game to defaults? This will overwrite current game.")) return;
-  await set(gameRef, defaultState);
-}
-
-</script>
+        // Global Controls
+        document.getElementById('btn-start').onclick = () => update(gameRef, { status: 'playing' });
+        document.getElementById('btn-freeze').onclick = () => {
+            const newStatus = currentGameState.status === 'frozen' ? 'playing' : 'frozen';
+            update(gameRef, { status: newStatus });
+        };
+        document.getElementById('btn-showdown').onclick = () => update(gameRef, { status: 'showdown' });
+        document.getElementById('btn-reset').onclick = () => set(gameRef, { status: 'intro', teams: defaultTeams });
+    </script>
 </body>
 </html>
