@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Operation Level Up — Display</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Intro Screen -->
+  <div id="introScreen" class="intro">
+    <h1 class="glow">OPERATION: LEVEL UP</h1>
+    <p id="introSub">Stability System Initializing...</p>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="gameScreen" style="display:none; padding:20px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <h2 id="roundTitle">Round: —</h2>
+      </div>
+      <div>
+        <div id="freezeTimer" class="timer" style="min-width:140px;">&nbsp;</div>
+      </div>
+    </div>
+    <div id="leaderboard" style="display:flex;flex-wrap:wrap;gap:14px; margin-top:18px; justify-content:center;"></div>
+  </div>
+
+  <!-- Audio -->
+  <audio id="introSound" src="https://assets.mixkit.co/sfx/preview/mixkit-sci-fi-interface-zoom-890.mp3" preload="auto"></audio>
+  <audio id="freezeSound" src="https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.wav" preload="auto"></audio>
+  <audio id="gainSound" src="https://assets.mixkit.co/sfx/preview/mixkit-game-level-completed-2059.mp3" preload="auto"></audio>
+  <audio id="loseSound" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-retro-game-over-213.wav" preload="auto"></audio>
+  <audio id="warningSound" src="https://assets.mixkit.co/sfx/preview/mixkit-alert-alarm-1005.mp3" preload="auto"></audio>
+
+<script type="module">
+import { db, ref, onValue } from './firebase.js';
+
+const gameRef = ref(db, "game");
+const introScreen = document.getElementById("introScreen");
+const gameScreen = document.getElementById("gameScreen");
+const leaderboard = document.getElementById("leaderboard");
+const roundTitle = document.getElementById("roundTitle");
+const freezeTimer = document.getElementById("freezeTimer");
+
+const introSound = document.getElementById("introSound");
+const freezeSound = document.getElementById("freezeSound");
+const gainSound = document.getElementById("gainSound");
+const loseSound = document.getElementById("loseSound");
+const warningSound = document.getElementById("warningSound");
+
+let currentlyWarning = false;
+
+onValue(gameRef, snapshot => {
+  const data = snapshot.val();
+  if(!data) return;
+
+  // Phase switch
+  if(data.phase === "game"){
+    introScreen.style.display = "none";
+    gameScreen.style.display = "block";
+  } else {
+    introScreen.style.display = "flex";
+    gameScreen.style.display = "none";
+  }
+
+  // Round
+  roundTitle.innerText = "Round: " + (data.round || "—");
+
+  // Build leaderboard
+  leaderboard.innerHTML = "";
+  const teams = (data.teams || []).slice();
+  teams.sort((a,b) => (b.score||0) - (a.score||0));
+  teams.forEach((team, idx) => {
+    const perc = Math.max(0, Math.min(120, team.score || 0));
+    const percentWidth = (perc / 120) * 100;
+    const teamDiv = document.createElement("div");
+    teamDiv.className = "teamDisplay";
+    teamDiv.id = `team-${idx}`;
+    teamDiv.style.position = "relative";
+    teamDiv.style.width = "300px";
+    teamDiv.style.padding = "14px";
+    teamDiv.style.borderRadius = "12px";
+    teamDiv.style.background = "#0f1113";
+    teamDiv.style.boxShadow = "0 6px 18px rgba(0,0,0,0.6)";
+    teamDiv.innerHTML = `
+      <h3 style="margin:0 0 8px 0">${team.name}</h3>
+      <div class="bar" style="height:20px; background:#222; border-radius:10px; overflow:hidden;">
+        <div class="fill" style="width:${percentWidth}%;"></div>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-top:8px; align-items:center;">
+        <strong>${team.score} Power</strong>
+        <small>Roles: ${(team.roles||[]).join(", ") || "—"}</small>
+      </div>
+    `;
+    leaderboard.appendChild(teamDiv);
+  });
+
+  // Play intro sound once when intro visible
+  if(data.phase === "intro"){
+    try { introSound.currentTime = 0; introSound.play(); } catch(e){}
+  }
+
+  // TIMER SYNC
+  if(data.timer && data.timer.active){
+    const remaining = Math.max(0, Math.floor((data.timer.endTime - Date.now()) / 1000));
+    freezeTimer.innerText = remaining > 0 ? remaining : "FREEZE!";
+    if(remaining === 0){
+      try { freezeSound.currentTime = 0; freezeSound.play(); } catch(e){}
+    }
+  } else {
+    freezeTimer.innerText = "";
+  }
+
+  // EFFECTS: targeted damage/gain + sparks + low energy warning
+  // Clear classes
+  document.querySelectorAll(".teamDisplay").forEach(el => {
+    el.classList.remove("damage", "lowEnergy", "gainFlash");
+  });
+
+  // Targeted damage / sparks (only for lastChangedTeam)
+  if(data.lastChange === "lose" && Number.isInteger(data.lastChangedTeam)){
+    const damagedEl = document.getElementById(`team-${data.lastChangedTeam}`);
+    if(damagedEl){
+      damagedEl.classList.add("damage");
+      try { loseSound.currentTime = 0; loseSound.play(); } catch(e){}
+      // sparks: create small particles from bar area
+      const fillEl = damagedEl.querySelector(".fill");
+      if(fillEl){
+        const rect = fillEl.getBoundingClientRect();
+        for(let i=0;i<14;i++){
+          const spark = document.createElement("div");
+          spark.className = "spark";
+          // place at the right edge of the fill
+          const left = rect.right - 6;
+          const top = rect.top + rect.height/2 + (Math.random()*12-6);
+          spark.style.left = left + "px";
+          spark.style.top = top + "px";
+          spark.style.setProperty("--x", (Math.random()*160 - 80) + "px");
+          spark.style.setProperty("--y", (Math.random()*-140 - 20) + "px");
+          document.body.appendChild(spark);
+          setTimeout(()=> spark.remove(), 900);
+        }
+      }
+    }
+  }
+
+  // Targeted gain feedback
+  if(data.lastChange === "gain" && Number.isInteger(data.lastChangedTeam)){
+    const gainedEl = document.getElementById(`team-${data.lastChangedTeam}`);
+    if(gainedEl){
+      gainedEl.classList.add("gainFlash");
+      try { gainSound.currentTime = 0; gainSound.play(); } catch(e){}
+    }
+  }
+
+  // Low energy warning (any team < 20)
+  const lowTeams = teams.map((t, i) => ({t,i})).filter(obj => (obj.t.score || 0) < 20);
+  if(lowTeams.length){
+    // mark those teams lowEnergy and play warning (once per state)
+    lowTeams.forEach(obj => {
+      const el = document.getElementById(`team-${obj.i}`);
+      if(el) el.classList.add("lowEnergy");
+    });
+    if(!currentlyWarning){
+      currentlyWarning = true;
+      try { warningSound.currentTime = 0; warningSound.play(); } catch(e){}
+    }
+  } else {
+    currentlyWarning = false;
+  }
+
+});
+</script>
+</body>
+</html>
