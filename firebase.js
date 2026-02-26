@@ -5,13 +5,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getDatabase, ref, set, onValue, update, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  databaseURL: "YOUR_DATABASE_URL",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MSG_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyB84UjJrcR7CE0OhhyWhFJzgrNwzglm04M",
+  authDomain: "fordatabase-2c541.firebaseapp.com",
+  databaseURL: "https://fordatabase-2c541-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "fordatabase-2c541",
+  storageBucket: "fordatabase-2c541.firebasestorage.app",
+  messagingSenderId: "624817857038",
+  appId: "1:624817857038:web:aab90c1a714f0f9863525f"
 };
 
 const app = initializeApp(firebaseConfig);
